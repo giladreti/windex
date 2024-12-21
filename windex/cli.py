@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import gzip
+import logging
 import operator
 import os.path
 import pathlib
@@ -200,6 +201,10 @@ def cli():
     "windows binary index"
 
 
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+
+
 def by_version(
     metadatas: dict[str, FileMetaData]
 ) -> dict[str, dict[str, dict[date, FileMetaData]]]:
@@ -260,32 +265,49 @@ def download_file(filename: str, metadata: FileMetaData) -> bytes:
 
 
 def download_before_after(filename, output_dir, os_ver, month, bitness):
+    logging.info(
+        f"Starting download_before_after with filename={filename}, output_dir={output_dir}, os_ver={os_ver}, month={month}, bitness={bitness}"
+    )
+
     metadatas = get_file_info(filename)
+    logging.info(f"Retrieved metadata for {filename}")
+
     metadatas_by_version = by_version(metadatas)
+    logging.info(f"Organized metadata by version")
 
     selected_os_files = metadatas_by_version[bitness][os_ver]
+    logging.info(f"Selected OS files for bitness={bitness} and os_ver={os_ver}")
 
     sorted_files = sorted(selected_os_files.items(), key=lambda k: k[0])
+    logging.info(f"Sorted files by date")
 
     patch_tuesday = get_patch_tuesday(month)
+    logging.info(f"Calculated Patch Tuesday for month={month}: {patch_tuesday}")
 
     before = next(file for (d, file) in sorted_files[::-1] if d < patch_tuesday)
     after = next(file for (d, file) in sorted_files if d >= patch_tuesday)
+    logging.info(f"Selected files before and after Patch Tuesday")
 
     p = pathlib.Path(output_dir)
     p.mkdir(exist_ok=True)
+    logging.info(f"Created output directory: {output_dir}")
 
     before_dir = p / "before"
     after_dir = p / "after"
-
     before_dir.mkdir(exist_ok=True)
     after_dir.mkdir(exist_ok=True)
+    logging.info(f"Created before and after directories")
 
-    # TODO: check if exists
     if not (before_dir / filename).exists():
         (before_dir / filename).write_bytes(download_file(filename, before))
+        logging.info(
+            f"Downloaded and saved file before Patch Tuesday: {before_dir / filename}"
+        )
     if not (after_dir / filename).exists():
         (after_dir / filename).write_bytes(download_file(filename, after))
+        logging.info(
+            f"Downloaded and saved file after Patch Tuesday: {after_dir / filename}"
+        )
 
 
 def export_diaphora(path):
@@ -312,6 +334,7 @@ def export_diaphora(path):
 
 def run_script(script_file_name: str):
     import ida_idaapi
+
     assert os.path.isfile(script_file_name)
     ida_idaapi.IDAPython_ExecScript(
         script_file_name, globals() | {"__name__": "__main__"}
@@ -332,10 +355,21 @@ def diff_diaphora(output_dir, filename, before_db, after_db):
 
 
 def run_diaphora(filename, output_dir):
+    logging.info(
+        f"Starting run_diaphora with filename={filename}, output_dir={output_dir}"
+    )
+
     before_db = str(pathlib.Path(output_dir) / "before" / f"{filename}")
     after_db = str(pathlib.Path(output_dir) / "after" / f"{filename}")
+    logging.info(f"Before DB path: {before_db}")
+    logging.info(f"After DB path: {after_db}")
+
     export_diaphora(before_db)
+    logging.info(f"Exported Diaphora for before DB")
+
     export_diaphora(after_db)
+    logging.info(f"Exported Diaphora for after DB")
+
     export_diaphora_html(
         str(pathlib.Path(output_dir) / "before" / filename),
         str(pathlib.Path(output_dir) / "before" / f"{filename}.sqlite"),
@@ -343,6 +377,7 @@ def run_diaphora(filename, output_dir):
         str(pathlib.Path(output_dir) / f"{filename}_asm_{{func}}.html"),
         str(pathlib.Path(output_dir) / f"{filename}_pseudo_{{func}}.html"),
     )
+    logging.info(f"Exported Diaphora HTML reports")
 
 
 def export_diaphora_html(idb, db_path1, db_path2, asm_diff, pseudo_diff):
@@ -371,9 +406,16 @@ def export_diaphora_html(idb, db_path1, db_path2, asm_diff, pseudo_diff):
     "--bitness", default="x64", show_default=True, type=click.Choice(["x64", "x86"])
 )
 def patchdiff(filename, output_dir, os_ver, month, bitness):
+    logging.info(
+        f"Starting patchdiff with filename={filename}, output_dir={output_dir}, os_ver={os_ver}, month={month}, bitness={bitness}"
+    )
     filename = filename.lower()
+
     download_before_after(filename, output_dir, os_ver, month, bitness)
+    logging.info(f"Completed download_before_after")
+
     run_diaphora(filename, output_dir)
+    logging.info(f"Completed run_diaphora")
 
 
 from xml.etree import ElementTree as ET
@@ -391,20 +433,32 @@ from xml.etree import ElementTree as ET
     "--bitness", default="x64", show_default=True, type=click.Choice(["x64", "x86"])
 )
 def listdiff(os_ver, month, bitness):
-    version = next(v for v in OS_VERSIONS_INFO if v.version == os_ver)
-    rss = ET.XML(requests.get(version.rss).text)
+    logging.info(
+        f"Starting listdiff with os_ver={os_ver}, month={month}, bitness={bitness}"
+    )
 
-    kbs = parse_kbs(rss)[version.build]
+    os_info = next(info for info in OS_VERSIONS_INFO if info.version == os_ver)
+    rss_url = os_info.rss
+    logging.info(f"Using RSS URL: {rss_url}")
+
+    rss = ET.XML(requests.get(rss_url).text)
+    logging.info(f"Retrieved and parsed RSS feed")
+
+    kbs = parse_kbs(rss)[os_info.build]
     patch_tuesday = get_patch_tuesday(month)
+    logging.info(f"Calculated Patch Tuesday for month={month}: {patch_tuesday}")
 
     before = next(link for (d, kb, link) in kbs[::-1] if d < patch_tuesday)
     after = next(link for (d, kb, link) in kbs if d >= patch_tuesday)
+    logging.info(f"Selected KB links before and after Patch Tuesday")
 
     before_files = get_list_from_link(before)
     after_files = get_list_from_link(after)
+    logging.info(f"Retrieved file lists from KB links")
 
     for file, version in sorted(after_files - before_files, key=operator.itemgetter(0)):
         print(f"{file} -> {version}")
+        logging.debug(f"File difference: {file} -> {version}")
 
 
 kb_re = re.compile(
