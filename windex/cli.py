@@ -446,3 +446,45 @@ def get_list_from_link(link):
     data = io.StringIO(requests.get(csv_link).text)
     data.readline()
     return set((x["File name"], x["File version"]) for x in csv.DictReader(data))
+
+
+@cli.command(name="browse")
+@click.argument("filename")
+def browse(filename):
+    metadatas = get_file_info(filename)
+
+    from textual.app import App, ComposeResult
+    from textual.widgets import Tree, Pretty
+    from textual.reactive import reactive
+    from textual.widget import Widget
+    from textual.scroll_view import ScrollView
+    from textual.widgets import TextArea
+    from textual.containers import VerticalScroll
+
+    class TreeApp(App):
+        CSS = """
+        Screen {
+            layout: grid;
+            grid-size: 2;
+            grid-gutter: 2;
+            padding: 2;
+        }
+        """
+
+        def compose(self) -> ComposeResult:
+            tree: Tree[str] = Tree(filename)
+            tree.root.expand()
+            for k in metadatas.keys():
+                tree.root.add_leaf(k)
+            yield tree
+            with VerticalScroll(id="code-view"):
+                yield Pretty("")
+
+        def _on_tree_node_highlighted(self, message: Tree.NodeSelected):
+            pass
+            # self.data =
+            # self.mutate_reactive(TreeApp.data)
+            self.query_one(Pretty).update(metadatas.get(message.node.label.plain))
+
+    app = TreeApp()
+    app.run()
