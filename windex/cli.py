@@ -1,15 +1,21 @@
-import click
+import csv
+import io
 import json
 import gzip
-import requests
-import pathlib
-import subprocess
+import operator
 import os.path
+import pathlib
+import re
 import sys
+import subprocess
+
+import bs4
+import click
+import requests
 
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from typing import Literal, Optional
+from typing import Literal, Optional, NamedTuple
 
 from pydantic import BaseModel, TypeAdapter, ConfigDict
 from pydantic.alias_generators import to_camel
@@ -19,6 +25,43 @@ BASE_URL = "https://winbindex.m417z.com"
 DATA = "data"
 FILENAME_METADATA = "by_filename_compressed"
 FILENAMES = "filenames.json"
+
+
+class OSVersionInfo(NamedTuple):
+    version: str
+    build: int
+    rss: str
+
+
+WINDOWS_10_RSS = (
+    "https://support.microsoft.com/en-us/feed/rss/6ae59d69-36fc-8e4d-23dd-631d98bf74a9"
+)
+WINDOWS_11_RSS = (
+    "https://support.microsoft.com/en-us/feed/rss/4ec863cc-2ecd-e187-6cb3-b50c6545db92"
+)
+
+OS_VERSIONS_INFO = [
+    OSVersionInfo("1507", 10240, WINDOWS_10_RSS),
+    OSVersionInfo("1511", 10586, WINDOWS_10_RSS),
+    OSVersionInfo("1607", 14393, WINDOWS_10_RSS),
+    OSVersionInfo("1703", 15063, WINDOWS_10_RSS),
+    OSVersionInfo("1709", 16299, WINDOWS_10_RSS),
+    OSVersionInfo("1803", 17134, WINDOWS_10_RSS),
+    OSVersionInfo("1809", 17763, WINDOWS_10_RSS),
+    OSVersionInfo("1903", 18362, WINDOWS_10_RSS),
+    OSVersionInfo("1909", 18363, WINDOWS_10_RSS),
+    OSVersionInfo("2004", 19041, WINDOWS_10_RSS),
+    OSVersionInfo("20H2", 19042, WINDOWS_10_RSS),
+    OSVersionInfo("21H1", 19043, WINDOWS_10_RSS),
+    OSVersionInfo("21H2", 19044, WINDOWS_10_RSS),
+    OSVersionInfo("11-21H2", 22000, WINDOWS_11_RSS),
+    OSVersionInfo("22H2", 19044, WINDOWS_10_RSS),
+    OSVersionInfo("11-22H2", 22621, WINDOWS_11_RSS),
+    OSVersionInfo("11-23H2", 22631, WINDOWS_11_RSS),
+    OSVersionInfo("11-24H2", 26100, WINDOWS_11_RSS),
+]
+
+OS_VERSIONS = [v.version for v in OS_VERSIONS_INFO]
 
 
 class FileInfo(BaseModel):
@@ -192,28 +235,6 @@ def by_version(
     return metadata_by_version
 
 
-OS_VERSIONS = [
-    "1507",
-    "1511",
-    "1607",
-    "1703",
-    "1709",
-    "1803",
-    "1809",
-    "1903",
-    "1909",
-    "2004",
-    "20H2",
-    "21H1",
-    "21H2",
-    "11-21H2",
-    "22H2",
-    "11-22H2",
-    "11-23H2",
-    "11-24H2",
-]
-
-
 def current_month():
     return date.today().strftime("%m.%y")
 
@@ -274,6 +295,7 @@ def download_before_after(filename, output_dir, os_ver, month, bitness):
 
 def export_diaphora(path):
     import ida
+
     db_file = path + ".sqlite3"
     if pathlib.Path(db_file).exists():
         return
@@ -292,9 +314,6 @@ def export_diaphora(path):
     run_script(str(diaphora_script))
     ida.close_database()
 
-
-import sys
-
 sys.path.append("/home/gilad/idapro-9.0/python/3/")
 sys.path.append("/home/gilad/idapro-9.0/python/3/ida_64")
 sys.path.append("/home/gilad/idapro-9.0/plugins")
@@ -306,18 +325,6 @@ def run_script(script_file_name: str):
     ida_idaapi.IDAPython_ExecScript(
         script_file_name, globals() | {"__name__": "__main__"}
     )
-
-
-# def create_diaphora_html(output_dir, filename, before_db, after_db):
-#     os.putenv("DIAPHORA_AUTO_HTML", "1")
-#     os.putenv("DIAPHORA_DB1", before_db + ".sqlite")
-#     os.putenv("DIAPHORA_DB2", after_db + ".sqlite")
-#     os.putenv('DIAPHORA_DIFF', ...)
-#     os.putenv("DIAPHORA_EA1", ...)
-#     os.putenv("DIAPHORA_EA2", ...)
-#     os.putenv("DIAPHORA_HTML_ASM", str(pathlib.Path(output_dir) / f"{filename}_asm.html"))
-#     os.putenv("DIAPHORA_HTML_PSEUDO", str(pathlib.Path(output_dir) / f"{filename}_pseudo.html"))
-#     os.putenv("PYTHONWARNINGS", "ignore")
 
 
 def diff_diaphora(output_dir, filename, before_db, after_db):
@@ -346,6 +353,7 @@ def run_diaphora(filename, output_dir):
         str(pathlib.Path(output_dir) / f"{filename}_pseudo_{{func}}.html"),
     )
 
+
 def export_diaphora_html(idb, db_path1, db_path2, asm_diff, pseudo_diff):
     import ida
 
@@ -363,7 +371,7 @@ def export_diaphora_html(idb, db_path1, db_path2, asm_diff, pseudo_diff):
 @click.argument("output-dir")
 @click.option(
     "--os-ver",
-    default=OS_VERSIONS[-1],
+    default=OS_VERSIONS_INFO[-1].version,
     type=click.Choice(OS_VERSIONS),
     show_default=True,
 )
@@ -375,53 +383,14 @@ def patchdiff(filename, output_dir, os_ver, month, bitness):
     download_before_after(filename, output_dir, os_ver, month, bitness)
     run_diaphora(filename, output_dir)
 
-WINDOWS_10_RSS = "https://support.microsoft.com/en-us/feed/rss/6ae59d69-36fc-8e4d-23dd-631d98bf74a9"
-WINDOWS_11_RSS = "https://support.microsoft.com/en-us/feed/rss/4ec863cc-2ecd-e187-6cb3-b50c6545db92"
-RSSS = {
-    "1507": WINDOWS_10_RSS,
-    "1511": WINDOWS_10_RSS,
-    "1607": WINDOWS_10_RSS,
-    "1703": WINDOWS_10_RSS,
-    "1709": WINDOWS_10_RSS,
-    "1803": WINDOWS_10_RSS,
-    "1809": WINDOWS_10_RSS,
-    "1903": WINDOWS_10_RSS,
-    "1909": WINDOWS_10_RSS,
-    "2004": WINDOWS_10_RSS,
-    "20H2": WINDOWS_10_RSS,
-    "21H1": WINDOWS_10_RSS,
-    "21H2": WINDOWS_10_RSS,
-    "11-21H2": WINDOWS_11_RSS,
-    "22H2": WINDOWS_10_RSS,
-    "11-22H2": WINDOWS_11_RSS,
-    "11-23H2": WINDOWS_11_RSS,
-    "11-24H2": WINDOWS_11_RSS,
-}
-BUILDS = {
-    "1507": 10240,
-    "1511": 10586,
-    "1607": 14393,
-    "1703": 15063,
-    "1709": 16299,
-    "1803": 17134,
-    "1809": 17763,
-    "1903": 18362,
-    "1909": 18363,
-    "2004": 19041,
-    "20H2": 19042,
-    "21H1": 19043,
-    "21H2": 19044,
-    "11-21H2": 22000,
-    "22H2": 19044,
-    "11-22H2": 22621,
-    "11-23H2": 22631,
-    "11-24H2": 26100,
-}
+
 from xml.etree import ElementTree as ET
+
+
 @cli.command(name="listdiff")
 @click.option(
     "--os-ver",
-    default=OS_VERSIONS[-1],
+    default=OS_VERSIONS_INFO[-1].version,
     type=click.Choice(OS_VERSIONS),
     show_default=True,
 )
@@ -430,12 +399,12 @@ from xml.etree import ElementTree as ET
     "--bitness", default="x64", show_default=True, type=click.Choice(["x64", "x86"])
 )
 def listdiff(os_ver, month, bitness):
-    rss_url = RSSS[os_ver]
-    rss = ET.XML(requests.get(rss_url).text)
+    version = next(v for v in OS_VERSIONS_INFO if v.version == os_ver)
+    rss = ET.XML(requests.get(version.rss).text)
 
-    kbs = parse_kbs(rss)[BUILDS[os_ver]]
+    kbs = parse_kbs(rss)[version.build]
     patch_tuesday = get_patch_tuesday(month)
-    
+
     before = next(link for (d, kb, link) in kbs[::-1] if d < patch_tuesday)
     after = next(link for (d, kb, link) in kbs if d >= patch_tuesday)
 
@@ -446,9 +415,11 @@ def listdiff(os_ver, month, bitness):
         print(f"{file} -> {version}")
 
 
-import re
-import operator
-kb_re = re.compile(r"(.* \d+, \d+)—KB(\d+) \(OS Build? (\d+\.\d+)(?: and (\d+\.\d+))*\)")
+kb_re = re.compile(
+    r"(.* \d+, \d+)—KB(\d+) \(OS Build? (\d+\.\d+)(?: and (\d+\.\d+))*\)"
+)
+
+
 def parse_kbs(rss) -> dict[int, list[tuple[date, str, str]]]:
     kbs = defaultdict(list)
     for item in rss.findall(".//item"):
@@ -466,23 +437,12 @@ def parse_kbs(rss) -> dict[int, list[tuple[date, str, str]]]:
 
     return {k: sorted(v, key=operator.itemgetter(0)) for (k, v) in kbs.items()}
 
-def find_month_in_rss(rss, month, os_ver):
-    patch_tuesday = get_patch_tuesday(month)
-
-    for item in rss.findall(".//item"):
-        title = item.find("title").text
-        link = item.find("link").text
-        if "KB" in title and BUILDS[os_ver] in title and (patch_tuesday.strftime(f"{patch_tuesday:%B} {patch_tuesday.day}, {patch_tuesday:%Y}")+"—KB") in title:
-            return link
 
 def get_list_from_link(link):
-    import bs4
-    import re
-    import io
-    import csv
     soup = bs4.BeautifulSoup(requests.get(link).text, "html.parser")
-    csv_link = soup.findAll("a", text=re.compile("file information for cumulative update \d+"))[0]["href"]
+    csv_link = soup.findAll(
+        "a", text=re.compile("file information for cumulative update \d+")
+    )[0]["href"]
     data = io.StringIO(requests.get(csv_link).text)
     data.readline()
     return set((x["File name"], x["File version"]) for x in csv.DictReader(data))
-    
