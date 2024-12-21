@@ -1,0 +1,38 @@
+[project]
+name = "windex"
+version = "0.1"
+description = "windows binary index"
+readme = "README.md"
+authors = [{name = "Gilad Reti"}]
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+classifiers = [
+    "License :: OSI Approved :: Apache Software License"
+]
+dependencies = [
+    "textual>=1.0.0",
+    "pydantic>=2.10.3",
+    "requests>=2.32.3",
+    "click>=8.1.7",
+    "cdifflib>=1.2.6",
+    "numpy",
+    "joblib",
+    "scikit-learn",
+    "bs4>=0.0.2",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.urls]
+Homepage = "https://github.com/gilad.reti@gmail.com/windex"
+Changelog = "https://github.com/gilad.reti@gmail.com/windex/releases"
+Issues = "https://github.com/gilad.reti@gmail.com/windex/issues"
+CI = "https://github.com/gilad.reti@gmail.com/windex/actions"
+
+[project.scripts]
+windex = "windex.cli:cli"
+
+[project.optional-dependencies]
+test = ["pytest"]
