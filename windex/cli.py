@@ -248,12 +248,7 @@ def get_patch_tuesday(month):
 def get_download_link(filename, timestamp, imagesize):
     file_id = f"{timestamp:08x}".upper() + f"{imagesize:x}".lower()
     return (
-        "https://msdl.microsoft.com/download/symbols/"
-        + filename
-        + "/"
-        + file_id
-        + "/"
-        + filename
+        f"https://msdl.microsoft.com/download/symbols/{filename}/{file_id}/{filename}"
     )
 
 
@@ -314,13 +309,9 @@ def export_diaphora(path):
     run_script(str(diaphora_script))
     ida.close_database()
 
-sys.path.append("/home/gilad/idapro-9.0/python/3/")
-sys.path.append("/home/gilad/idapro-9.0/python/3/ida_64")
-sys.path.append("/home/gilad/idapro-9.0/plugins")
-import ida_idaapi
-
 
 def run_script(script_file_name: str):
+    import ida_idaapi
     assert os.path.isfile(script_file_name)
     ida_idaapi.IDAPython_ExecScript(
         script_file_name, globals() | {"__name__": "__main__"}
@@ -380,6 +371,7 @@ def export_diaphora_html(idb, db_path1, db_path2, asm_diff, pseudo_diff):
     "--bitness", default="x64", show_default=True, type=click.Choice(["x64", "x86"])
 )
 def patchdiff(filename, output_dir, os_ver, month, bitness):
+    filename = filename.lower()
     download_before_after(filename, output_dir, os_ver, month, bitness)
     run_diaphora(filename, output_dir)
 
