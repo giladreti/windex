@@ -10,20 +10,29 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License"
 ]
 dependencies = [
-    "textual>=1.0.0",
     "pydantic>=2.10.3",
     "requests>=2.32.3",
     "click>=8.1.7",
     "cdifflib>=1.2.6",
-    "numpy",
-    "joblib",
-    "scikit-learn",
     "bs4>=0.0.2",
+    "textual>=1.0.0",
+    "ida",
+    "numpy>=2.2.0",
+    "scikit-learn>=1.6.0",
+    "joblib>=1.4.2",
 ]
 
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.3.4",
+]
+
+[tool.uv.sources]
+ida = { path = "idapro-9.0/idalib/python/" }
 
 [project.urls]
 Homepage = "https://github.com/gilad.reti@gmail.com/windex"
@@ -33,6 +42,3 @@ CI = "https://github.com/gilad.reti@gmail.com/windex/actions"
 
 [project.scripts]
 windex = "windex.cli:cli"
-
-[project.optional-dependencies]
-test = ["pytest"]

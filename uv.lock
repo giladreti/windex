@@ -152,6 +152,11 @@ wheels = [
 ]
 
 [[package]]
+name = "ida"
+version = "0.0.1"
+source = { directory = "idapro-9.0/idalib/python" }
+
+[[package]]
 name = "idna"
 version = "3.10"
 source = { registry = "https://pypi.org/simple" }
@@ -652,6 +657,7 @@ dependencies = [
     { name = "bs4" },
     { name = "cdifflib" },
     { name = "click" },
+    { name = "ida" },
     { name = "joblib" },
     { name = "numpy" },
     { name = "pydantic" },
@@ -660,8 +666,8 @@ dependencies = [
     { name = "textual" },
 ]
 
-[package.optional-dependencies]
-test = [
+[package.dev-dependencies]
+dev = [
     { name = "pytest" },
 ]
 
@@ -670,11 +676,14 @@ requires-dist = [
     { name = "bs4", specifier = ">=0.0.2" },
     { name = "cdifflib", specifier = ">=1.2.6" },
     { name = "click", specifier = ">=8.1.7" },
-    { name = "joblib" },
-    { name = "numpy" },
+    { name = "ida", directory = "idapro-9.0/idalib/python" },
+    { name = "joblib", specifier = ">=1.4.2" },
+    { name = "numpy", specifier = ">=2.2.0" },
     { name = "pydantic", specifier = ">=2.10.3" },
-    { name = "pytest", marker = "extra == 'test'" },
     { name = "requests", specifier = ">=2.32.3" },
-    { name = "scikit-learn" },
+    { name = "scikit-learn", specifier = ">=1.6.0" },
     { name = "textual", specifier = ">=1.0.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.3.4" }]

@@ -13,6 +13,14 @@ Install this tool using `pip`:
 ```bash
 pip install windex
 ```
+
+For patchdiffing, make sure ida9 is installed and available via:
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$IDA/plugins:$IDA
+export PYTHOHNPATH=$PYTHONPATH:$IDA/python/3:$IDA/python/3/ida_64:$IDA/plugins
+pip install $IDA/idalib/python
+```
+
 ## Usage
 
 For help, run:
@@ -23,6 +31,16 @@ You can also use:
 ```bash
 python -m windex --help
 ```
+
+### `listdiff`
+lists the files changed in a given patch tuesday.
+
+### `patchdiff`
+indexes and lists the patches in a given file in a given patch tuesday.
+
+### `browse`
+experimental. allows browsing for available files in `winbindex`'s database.
+
 ## Development
 
 To contribute to this tool, first checkout the code. Then create a new virtual environment:
@@ -39,3 +57,6 @@ To run the tests:
 ```bash
 python -m pytest
 ```
+
+## Credits
+Many thanks to [m417z](https://m417z.com/) for the very great [winbindex](https://winbindex.m417z.com/).
