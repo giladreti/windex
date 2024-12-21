@@ -353,7 +353,7 @@ def export_diaphora_html(idb, db_path1, db_path2, asm_diff, pseudo_diff):
     os.environ["DIAPHORA_DB_PATH2"] = db_path2
     os.environ["DIAPHORA_PSEUDO_DIFF_PATH"] = pseudo_diff
     os.environ["DIAPHORA_ASM_DIFF_PATH"] = asm_diff
-    run_script(str(pathlib.Path(__file__).parent / "myscript.py"))
+    run_script(str(pathlib.Path(__file__).parent / "diaphora_script.py"))
     ida.close_database()
 
 
